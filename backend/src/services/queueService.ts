@@ -24,18 +24,36 @@ let heartbeatTimer: NodeJS.Timeout | null = null;
 
 export function initQueueEngine() {
     try {
-        const redisUrl = process.env.REDIS_URL;
+        let redisUrl = process.env.REDIS_URL ? process.env.REDIS_URL.trim() : '';
+        // Strip surrounding quotes
+        redisUrl = redisUrl.replace(/^["']|["']$/g, '').trim();
+
+        // If user accidentally pasted 'REDIS_URL=...'
+        if (redisUrl.startsWith('REDIS_URL=')) {
+            redisUrl = redisUrl.substring('REDIS_URL='.length).trim().replace(/^["']|["']$/g, '');
+        }
+
+        // Check if user accidentally pasted Upstash REST API URL (https://)
+        if (redisUrl.startsWith('https://') || redisUrl.startsWith('http://')) {
+            console.error('[QueueEngine] Invalid REDIS_URL protocol! You copied an HTTP/REST URL. BullMQ requires the native Redis connection starting with "rediss://" (found under Upstash -> Connect -> ioredis).');
+            throw new Error('REDIS_URL is an HTTP REST URL. Use the "rediss://" connection string from Upstash (ioredis tab).');
+        }
+
         if (redisUrl) {
+            const maskedUrl = redisUrl.replace(/:([^:@]+)@/, ':****@');
+            console.log(`[QueueEngine] Connecting to Redis via REDIS_URL: ${maskedUrl}`);
             redisConnection = new Redis(redisUrl, {
                 maxRetriesPerRequest: null,
                 enableOfflineQueue: false,
+                tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
             });
         } else {
+            console.log(`[QueueEngine] Connecting to Redis at ${REDIS_HOST}:${REDIS_PORT}`);
             redisConnection = new Redis({
                 host: REDIS_HOST,
                 port: REDIS_PORT,
                 password: process.env.REDIS_PASSWORD || undefined,
-                tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+                tls: process.env.REDIS_TLS === 'true' ? { rejectUnauthorized: false } : undefined,
                 maxRetriesPerRequest: null,
                 enableOfflineQueue: false,
             });
