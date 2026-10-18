@@ -76,7 +76,7 @@ Render allows you to run Express.js and BullMQ worker processes on their free ti
 2. Click **New +** in the top navigation bar and select **Web Service**.
 3. Select your GitHub repository (`project_email` or your repo name) and click **Connect**.
 4. Fill in the service configuration:
-   - **Name**: `reachinbox-backend`
+   - **Name**: `reachinbox-backend-105` *(or `reachinbox-backend-<yourname>` — Render requires this name to be globally unique because it becomes your URL: `https://<name>.onrender.com`)*
    - **Region**: Same region as your database (e.g. `Ohio (US East)` or `Frankfurt (EU Central)`)
    - **Root Directory**: `backend`
    - **Runtime**: `Node`
