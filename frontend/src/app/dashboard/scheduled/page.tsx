@@ -20,16 +20,7 @@ export default function ScheduledEmailsPage() {
 
     return (
         <AppShell searchQuery={searchQuery} onSearchChange={setSearchQuery}>
-            <div className="space-y-4 max-w-5xl mx-auto">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Scheduled Emails</h1>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                            Active campaigns waiting in the queue for rate-limited background dispatch.
-                        </p>
-                    </div>
-                </div>
-
+            <div className="max-w-6xl mx-auto space-y-4">
                 <EmailList
                     emails={data?.data || []}
                     pagination={data?.pagination}

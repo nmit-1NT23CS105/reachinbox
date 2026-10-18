@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, FileText, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
+import { Upload, CheckCircle2, AlertTriangle, Trash2, X } from 'lucide-react';
 
 interface CsvUploaderProps {
     onRecipientsUploaded: (validEmails: string[]) => void;
@@ -88,18 +88,18 @@ export default function CsvUploader({
             />
 
             {fileName ? (
-                <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg text-xs font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>
-                        {fileName} ({validCount.toLocaleString()} Recipients)
+                <div className="flex items-center space-x-2 bg-[#e6f4ea] border border-[#a8dab5] text-[#00a854] px-3 py-1 rounded-full text-xs font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#00a854] flex-shrink-0" />
+                    <span className="truncate max-w-[140px]">
+                        {fileName} ({validCount} leads)
                     </span>
                     {invalidList.length > 0 && (
                         <button
                             type="button"
                             onClick={() => setShowInvalidModal(true)}
-                            className="text-amber-700 underline hover:text-amber-900 ml-1"
+                            className="text-amber-600 hover:underline text-[10px]"
                         >
-                            {invalidList.length} invalid
+                            ({invalidList.length} invalid)
                         </button>
                     )}
                     <button
@@ -108,12 +108,13 @@ export default function CsvUploader({
                             setFileName(null);
                             setValidCount(0);
                             setInvalidList([]);
-                            onClearList?.();
                             if (fileInputRef.current) fileInputRef.current.value = '';
+                            onClearList?.();
                         }}
-                        className="text-gray-400 hover:text-red-600 ml-2"
+                        className="text-gray-400 hover:text-red-500 transition-colors ml-1"
+                        title="Remove uploaded leads"
                     >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                     </button>
                 </div>
             ) : (
@@ -121,40 +122,45 @@ export default function CsvUploader({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isProcessing}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 text-xs font-medium transition-colors shadow-sm"
+                    className="inline-flex items-center space-x-1.5 text-[#00a854] hover:text-[#00875a] font-medium text-xs transition-colors py-1 px-2 rounded-lg hover:bg-[#e6f4ea]"
+                    title="Upload CSV or TXT lead list"
                 >
-                    <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{isProcessing ? 'Processing...' : 'Upload List (.csv)'}</span>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isProcessing ? 'Parsing...' : 'Upload List'}</span>
                 </button>
             )}
 
-            {/* Invalid addresses dialog */}
+            {/* Invalid leads summary modal */}
             {showInvalidModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl border border-gray-200 text-sm">
-                        <div className="flex items-center space-x-2 text-amber-600 font-semibold mb-2">
-                            <AlertTriangle className="w-5 h-5" />
-                            <span>Invalid Email Addresses Removed ({invalidList.length})</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-3">
-                            The following rows did not match valid email syntax and were automatically excluded from your recipient list:
-                        </p>
-                        <div className="max-h-40 overflow-y-auto bg-gray-50 p-3 rounded-lg border border-gray-200 font-mono text-xs text-gray-700 space-y-1 mb-4">
-                            {invalidList.map((inv, idx) => (
-                                <div key={idx} className="truncate">
-                                    • {inv}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="text-right">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-gray-100 text-gray-900">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
+                            <div className="flex items-center space-x-2 text-amber-600 font-bold text-xs">
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>Invalid Formats Skipped</span>
+                            </div>
                             <button
-                                type="button"
                                 onClick={() => setShowInvalidModal(false)}
-                                className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg font-medium text-xs hover:bg-emerald-700"
+                                className="text-gray-400 hover:text-gray-600"
                             >
-                                Got It
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                            The following entries were skipped because they did not match standard email formats:
+                        </p>
+                        <div className="bg-gray-50 rounded-xl p-3 max-h-40 overflow-y-auto space-y-1 text-[11px] text-gray-600 font-mono">
+                            {invalidList.map((inv, idx) => (
+                                <div key={idx}>{inv}</div>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowInvalidModal(false)}
+                            className="mt-4 w-full py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold"
+                        >
+                            Understood
+                        </button>
                     </div>
                 </div>
             )}

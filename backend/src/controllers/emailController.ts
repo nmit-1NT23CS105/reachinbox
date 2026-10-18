@@ -5,6 +5,7 @@ import { prisma } from '../db/prisma';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { scheduleEmailJob, emailQueue } from '../services/queueService';
 import { sendMail } from '../services/emailService';
+import { searchElasticsearchEmails, indexEmailJob } from '../services/elasticsearchService';
 
 async function ensureValidDbUser(userId?: string, email?: string, name?: string) {
     if (userId && userId !== 'fallback_user_1') {
@@ -114,6 +115,41 @@ export async function getScheduledEmails(req: AuthenticatedRequest, res: Respons
         const search = ((req.query.search as string) || '').trim();
         const skip = (page - 1) * limit;
 
+        if (search) {
+            const esResults = await searchElasticsearchEmails({
+                query: search,
+                status: ['SCHEDULED', 'PROCESSING'],
+                page,
+                limit,
+            }).catch(() => null);
+
+            if (esResults && esResults.data) {
+                return res.json({
+                    data: esResults.data.map((job: any) => ({
+                        id: job.id,
+                        campaignId: job.campaignId,
+                        senderEmail: job.senderEmail || validUser.email || 'oliver.brown@domain.io',
+                        senderName: job.senderName || validUser.name || 'Oliver Brown',
+                        recipient: job.recipient,
+                        recipientName: job.recipientName || job.recipient.split('@')[0],
+                        subject: job.subject,
+                        bodyPreview: job.bodyPreview || '',
+                        scheduledAt: job.scheduledAt,
+                        status: (job.status || 'scheduled').toLowerCase(),
+                        delayMs: 2000,
+                        hourlyLimit: 200,
+                    })),
+                    pagination: {
+                        page: esResults.page,
+                        limit: esResults.limit,
+                        total: esResults.total,
+                        totalPages: esResults.totalPages,
+                    },
+                    source: 'elasticsearch',
+                });
+            }
+        }
+
         const where: any = {
             status: { in: ['SCHEDULED', 'PROCESSING'] },
         };
@@ -181,6 +217,43 @@ export async function getSentEmails(req: AuthenticatedRequest, res: Response) {
         const limit = parseInt((req.query.limit as string) || '20', 10);
         const search = ((req.query.search as string) || '').trim();
         const skip = (page - 1) * limit;
+
+        if (search) {
+            const esResults = await searchElasticsearchEmails({
+                query: search,
+                status: ['SENT', 'FAILED', 'CANCELLED'],
+                page,
+                limit,
+            }).catch(() => null);
+
+            if (esResults && esResults.data) {
+                return res.json({
+                    data: esResults.data.map((job: any) => ({
+                        id: job.id,
+                        campaignId: job.campaignId,
+                        senderEmail: job.senderEmail || validUser.email || 'oliver.brown@domain.io',
+                        senderName: job.senderName || validUser.name || 'Oliver Brown',
+                        recipient: job.recipient,
+                        recipientName: job.recipientName || job.recipient.split('@')[0],
+                        subject: job.subject,
+                        bodyPreview: job.bodyPreview || '',
+                        scheduledAt: job.scheduledAt,
+                        sentAt: job.sentAt || job.scheduledAt || new Date(),
+                        status: (job.status || 'sent').toLowerCase(),
+                        errorMessage: null,
+                        messageId: `<msg_${job.id}@reachinbox.io>`,
+                        previewUrl: job.previewUrl || 'https://ethereal.email/message/demo',
+                    })),
+                    pagination: {
+                        page: esResults.page,
+                        limit: esResults.limit,
+                        total: esResults.total,
+                        totalPages: esResults.totalPages,
+                    },
+                    source: 'elasticsearch',
+                });
+            }
+        }
 
         const where: any = {
             status: { in: ['SENT', 'FAILED', 'PROCESSING', 'CANCELLED'] },
@@ -408,6 +481,23 @@ export async function scheduleCampaign(req: AuthenticatedRequest, res: Response)
             }
 
             await scheduleEmailJob(jobId, jobScheduledAt).catch(() => { });
+
+            // Index in Elasticsearch for full-text search capability
+            indexEmailJob({
+                id: jobId,
+                campaignId,
+                userId,
+                senderId: sender.id,
+                senderEmail: sender.email,
+                senderName: sender.displayName,
+                recipient: recipientEmail,
+                recipientName: recipientEmail.split('@')[0],
+                subject,
+                body: cleanBody,
+                status: 'SCHEDULED',
+                scheduledAt: jobScheduledAt,
+            }).catch(() => {});
+
             createdJobs.push({ id: jobId });
         }
 
@@ -512,6 +602,23 @@ export async function sendImmediateEmail(req: AuthenticatedRequest, res: Respons
                                     previewUrl,
                                 },
                             });
+
+                            indexEmailJob({
+                                id: dbJob.id,
+                                campaignId,
+                                userId,
+                                senderId: sender.id,
+                                senderEmail: sender.email,
+                                senderName: sender.displayName,
+                                recipient: recipientEmail,
+                                recipientName: recipientEmail.split('@')[0],
+                                subject,
+                                body: cleanBody,
+                                status: 'SENT',
+                                scheduledAt: new Date(),
+                                sentAt: new Date(),
+                                previewUrl,
+                            }).catch(() => {});
                         } catch (e) { }
                     }
 

@@ -16,8 +16,8 @@ export default function HomePage() {
     }, [router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-white text-gray-500 text-sm">
-            Loading ReachInbox...
+        <div className="min-h-screen flex items-center justify-center bg-white text-gray-500 text-xs font-sans">
+            Loading ONE...
         </div>
     );
 }

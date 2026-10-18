@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, KeyboardEvent } from 'react';
-import { X, UserPlus } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface RecipientInputProps {
     recipients: string[];
@@ -47,44 +47,44 @@ export default function RecipientInput({ recipients, onRecipientsChange }: Recip
         onRecipientsChange(recipients.filter((_, idx) => idx !== indexToRemove));
     };
 
-    // Truncate display for 1000+ recipients matching requirement #44
-    const displayLimit = 4;
+    // Show 3 chips + counter badge matching Figma "lamis@gmail.com lamis@gmail.com dlane@gmail.com +4"
+    const displayLimit = 3;
     const visibleRecipients = recipients.slice(0, displayLimit);
     const remainingCount = recipients.length - displayLimit;
 
     return (
-        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-white border border-gray-200 rounded-lg min-h-[42px] focus-within:ring-1 focus-within:ring-emerald-500 focus-within:border-emerald-500 transition-all">
+        <div className="flex flex-wrap items-center gap-1.5 min-h-[32px] w-full">
             {visibleRecipients.map((email, idx) => (
                 <span
                     key={idx}
-                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium"
+                    className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-[#e6f4ea] text-[#00a854] border border-[#a8dab5] text-xs font-medium"
                 >
                     <span>{email}</span>
                     <button
                         type="button"
                         onClick={() => removeRecipient(idx)}
-                        className="hover:text-emerald-950 focus:outline-none"
+                        className="hover:text-green-800 focus:outline-none ml-0.5"
                     >
-                        <X className="w-3 h-3" />
+                        <X className="w-3 h-3 text-[#00a854]" />
                     </button>
                 </span>
             ))}
 
             {remainingCount > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                    +{remainingCount} more
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#00a854] border border-[#a8dab5] text-xs font-semibold">
+                    +{remainingCount}
                 </span>
             )}
 
             <input
                 type="email"
-                placeholder={recipients.length === 0 ? 'recipient@example.com (Press Enter or Comma)' : ''}
+                placeholder={recipients.length === 0 ? 'recipient@example.com' : 'Add another recipient...'}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 onBlur={() => inputValue && addRecipient(inputValue)}
-                className="flex-1 min-w-[200px] border-none outline-none text-xs text-gray-800 placeholder-gray-400 bg-transparent px-1 py-0.5"
+                className="flex-1 min-w-[150px] border-none outline-none text-xs text-gray-900 placeholder-gray-400 bg-transparent py-1"
             />
         </div>
     );

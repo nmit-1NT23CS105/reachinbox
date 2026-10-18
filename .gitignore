@@ -9,6 +9,8 @@ build/
 .next/
 out/
 coverage/
+*.tsbuildinfo
+.tsbuildinfo
 
 # Environment files
 .env
@@ -34,3 +36,5 @@ dev.db
 # OS Files
 .DS_Store
 Thumbs.db
+dump.rdb
+*.rdb

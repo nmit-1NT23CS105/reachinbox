@@ -8,9 +8,12 @@ import campaignRoutes from './routes/campaignRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import leadsRoutes from './routes/leadsRoutes';
 import templateRoutes from './routes/templateRoutes';
+import slackRoutes from './routes/slackRoutes';
+import elasticsearchRoutes from './routes/elasticsearchRoutes';
 import { getCalendarEvents } from './controllers/calendarController';
 import { trackEmailOpen } from './controllers/trackingController';
 import { initQueueEngine, redisConnection, isRedisConnected, emailQueue } from './services/queueService';
+import { initElasticsearch, syncAllDbEmailsToElasticsearch } from './services/elasticsearchService';
 import { prisma } from './db/prisma';
 import { requireAuth } from './middleware/authMiddleware';
 
@@ -87,6 +90,8 @@ app.get('/api/track/open/:id', trackEmailOpen);
 app.use('/api/auth', authRoutes);
 app.get('/api/emails/calendar', requireAuth, getCalendarEvents);
 app.use('/api/emails', emailRoutes);
+app.use('/api/emails/elasticsearch', elasticsearchRoutes);
+app.use('/api/slack', slackRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/leads', leadsRoutes);
@@ -260,9 +265,12 @@ if (process.env.NODE_ENV !== 'test' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
         console.log(`=================================================`);
         await seedInitialData();
         initQueueEngine();
+        await initElasticsearch();
+        syncAllDbEmailsToElasticsearch().catch(() => {});
     });
 } else {
     seedInitialData().catch(console.error);
+    initElasticsearch().then(() => syncAllDbEmailsToElasticsearch()).catch(() => {});
 }
 
 export default app;

@@ -24,6 +24,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Slack Integration
+  slackWebhookUrl    String?
+  slackAccessToken   String?
+  slackChannel       String?
+  slackTeamName      String?
+  slackConnectedAt   DateTime?
+
   senders   Sender[]
   campaigns Campaign[]
   auditLogs AuditLog[]

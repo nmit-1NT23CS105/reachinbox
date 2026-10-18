@@ -20,16 +20,7 @@ export default function SentEmailsPage() {
 
     return (
         <AppShell searchQuery={searchQuery} onSearchChange={setSearchQuery}>
-            <div className="space-y-4 max-w-5xl mx-auto">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Sent Emails</h1>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                            History of emails successfully dispatched via SMTP transport.
-                        </p>
-                    </div>
-                </div>
-
+            <div className="max-w-6xl mx-auto space-y-4">
                 <EmailList
                     emails={data?.data || []}
                     pagination={data?.pagination}

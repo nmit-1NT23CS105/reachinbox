@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import RecipientInput from './RecipientInput';
 import CsvUploader from './CsvUploader';
 import RichTextEditor from './RichTextEditor';
@@ -10,7 +11,7 @@ import CampaignSummaryModal from './CampaignSummaryModal';
 import { scheduleCampaignApi, sendImmediateApi } from '@/lib/api/emails';
 import { getCurrentUser } from '@/lib/api/auth';
 import { User } from '@/types';
-import { Send, Clock, AlertCircle, CheckCircle2, UserCheck } from 'lucide-react';
+import { ArrowLeft, Paperclip, Clock, ChevronDown, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface ScheduleOptions {
     scheduledAt: string;
@@ -45,7 +46,7 @@ export default function ComposeForm() {
             if (stored) {
                 try {
                     setUser(JSON.parse(stored));
-                } catch (e) { }
+                } catch (e) {}
             }
         }
         getCurrentUser().then((u) => {
@@ -53,18 +54,15 @@ export default function ComposeForm() {
         });
     }, []);
 
-    const displayName = user?.name || 'Rahul Reddy';
-    const displayEmail = user?.senders?.[0]?.email || user?.email || 'kataru.rahul@gmail.com';
+    const displayEmail = user?.senders?.[0]?.email || user?.email || 'oliver.brown@domain.io';
 
-    const handleSendImmediate = async () => {
-        setPendingSchedule(null);
-
+    const handlePrimaryAction = () => {
         if (recipients.length === 0) {
-            setErrorMsg('Please specify at least one recipient.');
+            setErrorMsg('Please enter at least one recipient email or upload a lead list.');
             return;
         }
         if (!subject.trim()) {
-            setErrorMsg('Please enter a subject line.');
+            setErrorMsg('Please specify a subject for the email.');
             return;
         }
         if (!bodyHtml.trim()) {
@@ -72,10 +70,14 @@ export default function ComposeForm() {
             return;
         }
 
-        if (recipients.length > 50) {
-            setShowSummaryModal(true);
+        if (scheduledAt) {
+            executeSchedule();
         } else {
-            executeImmediateSend();
+            if (recipients.length > 50) {
+                setShowSummaryModal(true);
+            } else {
+                executeImmediateSend();
+            }
         }
     };
 
@@ -91,38 +93,14 @@ export default function ComposeForm() {
                 body: bodyHtml,
             });
 
-            if (res.skippedRecipients && res.skippedRecipients.length > 0) {
-                setSuccessMsg(
-                    `Campaign dispatched! (${res.totalRecipients} sent, ${res.skippedRecipients.length} unsubscribed skipped). Redirecting...`
-                );
-            } else {
-                setSuccessMsg(`Campaign created for ${res.totalRecipients} recipients! Redirecting...`);
-            }
+            setSuccessMsg(`Email dispatched successfully to ${res.totalRecipients} recipients! Redirecting...`);
             setTimeout(() => router.push('/dashboard/sent'), 1200);
         } catch (err: any) {
             setErrorMsg(getRequestErrorMessage(err, 'Failed to dispatch email.'));
         } finally {
             setIsSubmitting(false);
             setShowSummaryModal(false);
-            setPendingSchedule(null);
         }
-    };
-
-    const handleConfirmSchedule = async (scheduleOptions?: ScheduleOptions) => {
-        if (recipients.length === 0) {
-            setErrorMsg('Please specify at least one recipient.');
-            return;
-        }
-        if (!subject.trim()) {
-            setErrorMsg('Please enter a subject line.');
-            return;
-        }
-        if (!bodyHtml.trim()) {
-            setErrorMsg('Email body cannot be empty.');
-            return;
-        }
-
-        executeSchedule(scheduleOptions);
     };
 
     const executeSchedule = async (scheduleOptions?: ScheduleOptions | null) => {
@@ -135,6 +113,7 @@ export default function ComposeForm() {
             const selectedDelay = selectedSchedule?.delayBetweenSeconds || delayBetweenSeconds;
             const selectedHourlyLimit = selectedSchedule?.hourlyLimit || hourlyLimit;
             const targetTime = selectedTime || new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
             const res = await scheduleCampaignApi({
                 recipients,
                 subject,
@@ -151,68 +130,93 @@ export default function ComposeForm() {
             setErrorMsg(getRequestErrorMessage(err, 'Failed to schedule campaign.'));
         } finally {
             setIsSubmitting(false);
+            setShowSchedulePanel(false);
             setShowSummaryModal(false);
             setPendingSchedule(null);
         }
     };
 
     return (
-        <div className="ios-glass-card rounded-[32px] border border-white/90 shadow-2xl max-w-4xl mx-auto overflow-hidden font-sans backdrop-blur-3xl">
-            {/* Top Glass Header */}
-            <div className="px-7 py-4 border-b border-white/60 bg-white/50 backdrop-blur-md flex items-center justify-between">
-                <div>
-                    <h1 className="text-base font-bold text-gray-900">Compose Campaign</h1>
+        <div className="max-w-5xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 font-sans text-gray-900">
+            {/* Top Bar matching Figma */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                <div className="flex items-center space-x-3">
+                    <Link
+                        href="/dashboard/scheduled"
+                        className="p-1 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                        title="Back to Scheduled"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                    </Link>
+                    <h1 className="text-sm font-bold text-gray-900 tracking-tight">
+                        Compose New Email
+                    </h1>
                 </div>
 
-                <div className="flex items-center space-x-2.5">
-                    <CsvUploader
-                        onRecipientsUploaded={(newList) => {
-                            setRecipients(newList);
-                            setErrorMsg(null);
-                        }}
-                        onClearList={() => setRecipients([])}
-                        currentCount={recipients.length}
-                    />
+                <div className="flex items-center space-x-3">
+                    <button
+                        type="button"
+                        className="text-gray-400 hover:text-gray-600 p-1"
+                        title="Attach Files"
+                    >
+                        <Paperclip className="w-4 h-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowSchedulePanel(!showSchedulePanel)}
+                        className={`p-1 rounded transition-colors ${
+                            scheduledAt ? 'text-[#00a854]' : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                        title="Schedule Send Time"
+                    >
+                        <Clock className="w-4 h-4" />
+                    </button>
+
+                    {/* Action Button: Send or Send Later */}
+                    <button
+                        type="button"
+                        onClick={handlePrimaryAction}
+                        disabled={isSubmitting}
+                        className="py-1.5 px-5 rounded-full border-2 border-[#00a854] text-[#00a854] hover:bg-[#e6f4ea] font-semibold text-xs transition-colors disabled:opacity-50 active:scale-95 shadow-2xs"
+                    >
+                        {isSubmitting
+                            ? 'Processing...'
+                            : scheduledAt
+                            ? 'Send Later'
+                            : 'Send'}
+                    </button>
                 </div>
             </div>
 
-            {/* Alerts */}
+            {/* Notification Alerts */}
             {errorMsg && (
-                <div className="mx-7 mt-4 p-4 bg-red-500/10 border border-red-500/20 text-red-800 text-xs rounded-2xl flex items-center space-x-2.5 shadow-2xs">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
-                    <span className="font-semibold">{errorMsg}</span>
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <span>{errorMsg}</span>
                 </div>
             )}
-
             {successMsg && (
-                <div className="mx-7 mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-900 text-xs rounded-2xl flex items-center space-x-2.5 shadow-2xs">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span className="font-semibold">{successMsg}</span>
+                <div className="mt-4 p-3 bg-[#e6f4ea] border border-[#a8dab5] text-[#00a854] text-xs rounded-xl flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#00a854] flex-shrink-0" />
+                    <span>{successMsg}</span>
                 </div>
             )}
 
-            {/* Main Form Fields */}
-            <div className="p-4 sm:p-7 space-y-4 sm:space-y-5">
-                {/* From Account Field */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-3 text-xs">
-                    <label className="w-16 font-bold text-gray-500">From:</label>
-                    <div className="flex-1 bg-white/70 border border-white/80 rounded-2xl px-4 py-3 text-gray-900 font-semibold flex items-center justify-between shadow-2xs">
-                        <div className="flex items-center space-x-2.5 truncate">
-                            <UserCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="truncate">
-                                {displayName} &lt;{displayEmail}&gt;
-                            </span>
-                        </div>
-                        <span className="text-[10px] bg-emerald-500/15 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex-shrink-0">
-                            Verified Sender
-                        </span>
+            {/* Form Fields matching Figma */}
+            <div className="space-y-3.5 pt-4">
+                {/* From Row */}
+                <div className="flex items-center space-x-4 text-xs pb-2 border-b border-gray-100">
+                    <span className="w-12 font-medium text-gray-500">From</span>
+                    <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-[#f1f3f4] rounded-lg text-xs font-medium text-gray-800">
+                        <span>{displayEmail}</span>
+                        <ChevronDown className="w-3 h-3 text-gray-500" />
                     </div>
                 </div>
 
-                {/* To Recipients Field */}
-                <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-3 text-xs">
-                    <label className="w-16 sm:pt-3 font-bold text-gray-500">To:</label>
-                    <div className="flex-1">
+                {/* To Row with Upload List button matching Figma */}
+                <div className="flex items-center space-x-4 text-xs pb-2 border-b border-gray-100">
+                    <span className="w-12 font-medium text-gray-500 flex-shrink-0">To</span>
+                    <div className="flex-1 min-w-0">
                         <RecipientInput
                             recipients={recipients}
                             onRecipientsChange={(newList) => {
@@ -221,99 +225,127 @@ export default function ComposeForm() {
                             }}
                         />
                     </div>
+                    <div className="flex-shrink-0 pl-2">
+                        <CsvUploader
+                            onRecipientsUploaded={(newList) => {
+                                setRecipients(newList);
+                                setErrorMsg(null);
+                            }}
+                            onClearList={() => setRecipients([])}
+                            currentCount={recipients.length}
+                        />
+                    </div>
                 </div>
 
-                {/* Subject Line Field */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-3 text-xs">
-                    <label className="w-16 font-bold text-gray-500">Subject:</label>
+                {/* Subject Row */}
+                <div className="flex items-center space-x-4 text-xs pb-2 border-b border-gray-100">
+                    <span className="w-12 font-medium text-gray-500">Subject</span>
                     <input
                         type="text"
-                        placeholder="Enter subject line..."
+                        placeholder="Subject"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
-                        className="flex-1 px-4 py-3 ios-input rounded-2xl text-xs text-gray-900 font-semibold placeholder-gray-400"
+                        className="flex-1 py-1 text-xs text-gray-900 placeholder-gray-400 bg-transparent border-none focus:outline-none"
                     />
                 </div>
 
-                {/* Body Text Editor */}
-                <div className="pt-1">
-                    <RichTextEditor content={bodyHtml} onChange={setBodyHtml} />
-                </div>
+                {/* Throttling & Rate Limit Row matching Figma */}
+                <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600 py-1">
+                    <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-500">Delay between 2 emails</span>
+                        <input
+                            type="number"
+                            min="1"
+                            max="300"
+                            value={delayBetweenSeconds}
+                            onChange={(e) => setDelayBetweenSeconds(parseInt(e.target.value) || 2)}
+                            className="w-12 px-2 py-1 bg-[#f1f3f4] border border-transparent focus:border-[#00a854] focus:bg-white rounded-md text-center text-xs font-semibold text-gray-900 focus:outline-none"
+                        />
+                        <span className="text-gray-400 text-[11px]">sec</span>
+                    </div>
 
-                {/* Action Controls */}
-                <div className="flex items-center justify-between pt-5 border-t border-white/60">
-                    <div className="flex items-center space-x-3">
-                        <button
-                            type="button"
-                            onClick={handleSendImmediate}
-                            disabled={isSubmitting}
-                            className="px-7 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-teal-700 hover:from-emerald-600 hover:to-teal-800 text-white font-extrabold text-xs transition-all shadow-[0_6px_25px_-4px_rgba(16,185,129,0.45)] hover:shadow-[0_8px_30px_-4px_rgba(16,185,129,0.55)] flex items-center space-x-2 disabled:opacity-50 active:scale-95"
-                        >
-                            <Send className="w-4 h-4" />
-                            <span>Send Now</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowSchedulePanel(true)}
-                            disabled={isSubmitting}
-                            className="px-6 py-3 rounded-2xl border border-white/80 bg-white/80 hover:bg-white text-gray-800 font-bold text-xs transition-all flex items-center space-x-2 disabled:opacity-50 shadow-2xs active:scale-95"
-                        >
-                            <Clock className="w-4 h-4 text-emerald-600" />
-                            <span>Schedule Campaign...</span>
-                        </button>
+                    <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-500">Hourly Limit</span>
+                        <input
+                            type="number"
+                            min="1"
+                            max="5000"
+                            value={hourlyLimit}
+                            onChange={(e) => setHourlyLimit(parseInt(e.target.value) || 200)}
+                            className="w-16 px-2 py-1 bg-[#f1f3f4] border border-transparent focus:border-[#00a854] focus:bg-white rounded-md text-center text-xs font-semibold text-gray-900 focus:outline-none"
+                        />
+                        <span className="text-gray-400 text-[11px]">/ hr</span>
                     </div>
 
                     {scheduledAt && (
-                        <div className="text-xs text-emerald-800 font-bold bg-emerald-500/15 px-4 py-2.5 rounded-2xl border border-emerald-500/30 shadow-2xs">
-                            Scheduled for: {new Date(scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} IST
+                        <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#fff3e0] text-[#d97706] text-[11px] font-medium border border-[#ffe0b2]">
+                            <Clock className="w-3 h-3 text-[#d97706]" />
+                            <span>
+                                Scheduled for:{' '}
+                                {new Date(scheduledAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setScheduledAt('')}
+                                className="ml-1 text-gray-400 hover:text-red-500"
+                                title="Remove schedule"
+                            >
+                                ×
+                            </button>
                         </div>
                     )}
                 </div>
+
+                {/* Rich Text Editor matching Figma */}
+                <div className="pt-2">
+                    <RichTextEditor content={bodyHtml} onChange={setBodyHtml} />
+                </div>
             </div>
 
-            {/* Schedule Settings Panel Modal */}
+            {/* Schedule Panel matching Figma Send Later popover */}
             {showSchedulePanel && (
                 <SchedulePanel
                     scheduledAt={scheduledAt}
                     delayBetweenSeconds={delayBetweenSeconds}
                     hourlyLimit={hourlyLimit}
-                    onScheduleChange={(newTime, newDelay, newLimit) => {
-                        setScheduledAt(newTime);
-                        setDelayBetweenSeconds(newDelay);
-                        setHourlyLimit(newLimit);
+                    onScheduleChange={(time, d, l) => {
+                        setScheduledAt(time);
+                        setDelayBetweenSeconds(d);
+                        setHourlyLimit(l);
                     }}
                     onClose={() => setShowSchedulePanel(false)}
-                    onConfirmSchedule={(newTime, newDelay, newLimit) => {
-                        const scheduleOptions = {
-                            scheduledAt: newTime,
-                            delayBetweenSeconds: newDelay,
-                            hourlyLimit: newLimit,
-                        };
-                        setPendingSchedule(scheduleOptions);
+                    onConfirmSchedule={(time, d, l) => {
+                        setScheduledAt(time);
+                        setDelayBetweenSeconds(d);
+                        setHourlyLimit(l);
                         setShowSchedulePanel(false);
-                        if (recipients.length > 50) {
-                            setShowSummaryModal(true);
-                        } else {
-                            handleConfirmSchedule(scheduleOptions);
-                        }
                     }}
                 />
             )}
 
-            {/* High-recipient Summary Modal */}
+            {/* Bulk Campaign Summary Modal */}
             {showSummaryModal && (
                 <CampaignSummaryModal
-                    totalRecipients={recipients.length}
+                    isOpen={showSummaryModal}
+                    onClose={() => setShowSummaryModal(false)}
+                    onConfirm={() => {
+                        if (pendingSchedule || scheduledAt) {
+                            executeSchedule(pendingSchedule);
+                        } else {
+                            executeImmediateSend();
+                        }
+                    }}
+                    recipientCount={recipients.length}
+                    senderEmail={displayEmail}
                     subject={subject}
                     scheduledAt={pendingSchedule?.scheduledAt || scheduledAt}
                     delayBetweenSeconds={pendingSchedule?.delayBetweenSeconds || delayBetweenSeconds}
                     hourlyLimit={pendingSchedule?.hourlyLimit || hourlyLimit}
-                    onConfirm={pendingSchedule || scheduledAt ? () => executeSchedule(pendingSchedule) : executeImmediateSend}
-                    onCancel={() => {
-                        setShowSummaryModal(false);
-                        setPendingSchedule(null);
-                    }}
                     isSubmitting={isSubmitting}
                 />
             )}

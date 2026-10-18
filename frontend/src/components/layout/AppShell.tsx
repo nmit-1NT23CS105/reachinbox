@@ -30,7 +30,7 @@ export default function AppShell({ children, searchQuery, onSearchChange }: AppS
             if (storedUser) {
                 try {
                     setUser(JSON.parse(storedUser));
-                } catch (e) { }
+                } catch (e) {}
             }
         }
 
@@ -55,20 +55,17 @@ export default function AppShell({ children, searchQuery, onSearchChange }: AppS
     });
 
     return (
-        <div className="min-h-screen ios-bg-mesh flex flex-col font-sans antialiased text-gray-900 selection:bg-emerald-500 selection:text-white relative overflow-hidden">
-            {/* Animated iOS Background Light Spheres */}
-            <div className="ios-light-orb-1" />
-            <div className="ios-light-orb-2" />
-            <div className="ios-light-orb-3" />
-
-            <Header user={user} searchQuery={searchQuery} onSearchChange={onSearchChange} />
-            <div className="flex flex-1 overflow-hidden z-10">
-                <Sidebar
-                    user={user}
-                    scheduledCount={scheduledRes?.pagination.total || 0}
-                    sentCount={sentRes?.pagination.total || 0}
-                />
-                <main className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">{children}</main>
+        <div className="min-h-screen bg-white flex font-sans antialiased text-gray-900 selection:bg-[#e6f4ea] selection:text-[#00a854]">
+            <Sidebar
+                user={user}
+                scheduledCount={scheduledRes?.pagination.total || 0}
+                sentCount={sentRes?.pagination.total || 0}
+            />
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                <Header searchQuery={searchQuery} onSearchChange={onSearchChange} />
+                <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-white">
+                    {children}
+                </main>
             </div>
         </div>
     );

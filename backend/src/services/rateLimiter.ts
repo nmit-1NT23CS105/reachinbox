@@ -1,7 +1,7 @@
 import Redis from 'ioredis';
 
-const DEFAULT_DELAY_MS = parseInt(process.env.DEFAULT_DELAY_MS || '50', 10);
-const DEFAULT_MAX_HOURLY_LIMIT = parseInt(process.env.MAX_EMAILS_PER_HOUR || '1000', 10);
+const DEFAULT_DELAY_MS = parseInt(process.env.INTER_EMAIL_DELAY_MS || process.env.DEFAULT_DELAY_MS || '2000', 10);
+const DEFAULT_MAX_HOURLY_LIMIT = parseInt(process.env.MAX_EMAILS_PER_HOUR || '200', 10);
 
 /**
  * Returns the current hour window string key, e.g. "2026-08-20T18"
@@ -55,9 +55,10 @@ export async function checkAndIncrementHourlyRate(
     }
 
     if (currentCount > hourlyLimit) {
+        await redis.decr(redisKey).catch(() => {});
         return {
             allowed: false,
-            currentCount,
+            currentCount: hourlyLimit,
             limit: hourlyLimit,
             nextWindow: getNextHourWindowStart(now),
         };

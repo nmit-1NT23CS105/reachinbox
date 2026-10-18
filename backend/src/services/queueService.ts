@@ -5,6 +5,8 @@ import { prisma } from '../db/prisma';
 import { sendMail } from './emailService';
 import { checkAndIncrementHourlyRate, reserveSendSlot } from './rateLimiter';
 import { processEmailTemplate } from '../utils/spintax';
+import { sendRateLimitSlackNotification } from './slackService';
+import { indexEmailJob } from './elasticsearchService';
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
@@ -22,12 +24,22 @@ let heartbeatTimer: NodeJS.Timeout | null = null;
 
 export function initQueueEngine() {
     try {
-        redisConnection = new Redis({
-            host: REDIS_HOST,
-            port: REDIS_PORT,
-            maxRetriesPerRequest: null,
-            enableOfflineQueue: false,
-        });
+        const redisUrl = process.env.REDIS_URL;
+        if (redisUrl) {
+            redisConnection = new Redis(redisUrl, {
+                maxRetriesPerRequest: null,
+                enableOfflineQueue: false,
+            });
+        } else {
+            redisConnection = new Redis({
+                host: REDIS_HOST,
+                port: REDIS_PORT,
+                password: process.env.REDIS_PASSWORD || undefined,
+                tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+                maxRetriesPerRequest: null,
+                enableOfflineQueue: false,
+            });
+        }
 
         redisConnection.on('error', (err) => {
             if (isRedisConnected) {
@@ -242,6 +254,19 @@ export async function processSingleEmailJob(emailJobId: string): Promise<boolean
             console.log(
                 `[RateLimiter] Sender ${job.senderId} reached hourly limit (${job.campaign.hourlyLimit}/hr). Rescheduling job ${emailJobId} for next window ${rateCheck.nextWindow.toISOString()}`
             );
+
+            // Live Slack notification on Rate Limit Hit (Required by assignment specifications)
+            sendRateLimitSlackNotification({
+                senderId: job.senderId,
+                senderEmail: job.sender.email,
+                userId: job.campaign.userId,
+                hourlyLimit: job.campaign.hourlyLimit,
+                nextWindow: rateCheck.nextWindow,
+                redisConnection,
+            }).catch((slackErr: any) => {
+                console.error('[RateLimitAlert] Error dispatching Slack notification:', slackErr.message);
+            });
+
             await prisma.emailJob.update({
                 where: { id: emailJobId },
                 data: {
@@ -252,6 +277,22 @@ export async function processSingleEmailJob(emailJobId: string): Promise<boolean
                 },
             });
 
+            // Keep Elasticsearch index updated
+            indexEmailJob({
+                id: emailJobId,
+                campaignId: job.campaignId,
+                userId: job.campaign.userId,
+                senderId: job.senderId,
+                senderEmail: job.sender.email,
+                senderName: job.sender.displayName,
+                recipient: job.recipient,
+                recipientName: job.recipientName,
+                subject: job.subject,
+                body: job.body,
+                status: 'SCHEDULED',
+                scheduledAt: rateCheck.nextWindow,
+            }).catch(() => {});
+
             if (emailQueue && isRedisConnected) {
                 await emailQueue.remove(emailJobId).catch(() => { });
                 await scheduleEmailJob(emailJobId, rateCheck.nextWindow);
@@ -259,11 +300,15 @@ export async function processSingleEmailJob(emailJobId: string): Promise<boolean
             return false;
         }
 
-        // 4. Reserve Send Slot for Minimum Inter-Email Delay
+        // 4. Reserve Send Slot for Minimum Inter-Email Delay (e.g. 2000ms)
+        const minInterDelay = job.campaign.delayMs !== undefined
+            ? job.campaign.delayMs
+            : parseInt(process.env.INTER_EMAIL_DELAY_MS || '2000', 10);
+
         const slotMs = await reserveSendSlot(
             redisConnection,
             job.senderId,
-            job.campaign.delayMs !== undefined ? job.campaign.delayMs : 50
+            minInterDelay
         );
 
         const delayMs = slotMs - Date.now();
@@ -361,6 +406,24 @@ export async function processSingleEmailJob(emailJobId: string): Promise<boolean
             });
         }
 
+        // Keep Elasticsearch index updated with SENT status
+        indexEmailJob({
+            id: emailJobId,
+            campaignId: job.campaignId,
+            userId: job.campaign?.userId,
+            senderId: job.senderId,
+            senderEmail: job.sender?.email,
+            senderName: job.sender?.displayName,
+            recipient: job.recipient,
+            recipientName: job.recipientName,
+            subject: personalizedSubject,
+            body: cleanHtmlBody,
+            status: 'SENT',
+            scheduledAt: job.scheduledAt,
+            sentAt: new Date(),
+            previewUrl: result.previewUrl,
+        }).catch(() => {});
+
         return true;
     } else {
         const isPermanent = job.attempts >= 3;
@@ -375,6 +438,22 @@ export async function processSingleEmailJob(emailJobId: string): Promise<boolean
                 lockedUntil: null,
             },
         });
+
+        // Keep Elasticsearch index updated with FAILED/SCHEDULED status
+        indexEmailJob({
+            id: emailJobId,
+            campaignId: job.campaignId,
+            userId: job.campaign?.userId,
+            senderId: job.senderId,
+            senderEmail: job.sender?.email,
+            senderName: job.sender?.displayName,
+            recipient: job.recipient,
+            recipientName: job.recipientName,
+            subject: personalizedSubject,
+            body: cleanHtmlBody,
+            status: nextStatus,
+            scheduledAt: job.scheduledAt,
+        }).catch(() => {});
 
         if (isPermanent) {
             await prisma.campaign.update({
